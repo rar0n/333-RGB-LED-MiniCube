@@ -2,40 +2,57 @@
   Fire animation for the 3x3x3 cube.
 
   Integer-only "heat" simulation (a tiny cousin of the well known Fire2012 idea):
-    1. every cell cools down a random amount (more cooling higher up)
+    1. every cell cools down a random amount (set per layer)
     2. heat rises: each cell takes most of its heat from the cell below
     3. heat spreads a little sideways, so the nine columns form one flame
     4. random sparks add heat at the bottom, more often near the center axis
-  The heat value (0-255) is then mapped to a color through a 3-stop palette
-  (black -> pal[0] -> pal[1] -> pal[2]), so color variations only need another palette.
+  The heat is then smoothed a bit over time (more at the top, to calm flicker)
+  and mapped to a color through a 3-stop palette (black -> pal[0] -> pal[1] -> pal[2]),
+  so color variations only need another palette.
 
   cube[x][y][z]: y is height (0 = bottom, 2 = top)
 
-  Memory: 27 bytes heat + 9 bytes palette + a few statics. No floating point.
+  Memory: 27 bytes heat + 27 bytes smoothed heat + palettes + a few statics. No floating point.
 */
 
 
 // ---- Tunables --------------------------------------------------------------
 #define FIRE_STEP_MS     50   // time between simulation steps (ms)
-#define FIRE_COOL_BASE   60   // max random cooling per step, bottom layer
-#define FIRE_COOL_RISE   60   // extra max cooling per layer going up
+#define FIRE_RISE         4   // how much of a cell's heat is taken from the cell below, 0-8 (eighths).
+                              // High = upper layers just follow the layer below, low = they live their own life
 #define FIRE_SPREAD       1   // sideways heat mixing, 0 (none) to 4 (strong)
 #define FIRE_SPARK_MIN  140   // minimum heat added by a spark (max is 255)
+
+// Max random cooling per step, by layer: bottom, middle, top.
+// Higher = that layer falls off faster and more randomly.
+static const uint8_t fireCool[3]   = {  60, 150,  90 };
+
+// Display smoothing by layer: bottom, middle, top.
+// 8 = show the heat as it is, lower = softer / slower changes (less flicker).
+static const uint8_t fireSmooth[3] = {   8,   6,   2 };
 
 // Spark chance per step (out of 256) by distance from the center axis:
 // center column, the four side columns, the four corner columns
 static const uint8_t fireSparkChance[3] = { 170, 95, 30 };
 
-// Classic fire palette: deep red -> orange -> yellowish white
-// (values are "perceptual", they go through the gamma table before reaching the LEDs)
+// Palette for gamma-corrected output (gammaVal around 2.2). The values are
+// "perceptual", the gamma table darkens them before they reach the LEDs.
 static const RGB fireClassic[3] = {
   { 255,  40,   0 },
   { 255, 130,   0 },
   { 255, 215,  60 }
 };
 
+// Palette for linear output (gammaVal = 1.0): deep red -> orange -> yellowish white
+static const RGB fireLinear[3] = {
+  { 255,  24,   0 },
+  { 255,  96,   0 },
+  { 255, 192,  48 }
+};
 
-static uint8_t fireHeat[3][3][3];   // [x][y][z]
+
+static uint8_t fireHeat[3][3][3];    // [x][y][z] simulated heat
+static uint8_t fireShown[3][3][3];   // smoothed heat that is actually displayed
 static unsigned long fireLast = 0;
 
 
@@ -70,14 +87,13 @@ static void fireStep() {
   for (int x = 0; x < 3; x++)
     for (int z = 0; z < 3; z++)
       for (int y = 0; y < 3; y++)
-        fireHeat[x][y][z] = fireQsub(fireHeat[x][y][z],
-                                     (uint8_t)random(FIRE_COOL_BASE + y * FIRE_COOL_RISE + 1));
+        fireHeat[x][y][z] = fireQsub(fireHeat[x][y][z], (uint8_t)random(fireCool[y] + 1));
 
   // 2. heat rises (top layer first, so it reads the not yet updated layer below)
   for (int x = 0; x < 3; x++)
     for (int z = 0; z < 3; z++)
       for (int y = 2; y > 0; y--)
-        fireHeat[x][y][z] = (2 * fireHeat[x][y - 1][z] + fireHeat[x][y][z]) / 3;
+        fireHeat[x][y][z] = (FIRE_RISE * fireHeat[x][y - 1][z] + (8 - FIRE_RISE) * fireHeat[x][y][z]) / 8;
 
   // 3. mix sideways within each layer
   for (int y = 0; y < 3; y++) {
@@ -118,13 +134,21 @@ static void fireUpdate(const RGB *pal) {
 
   fireStep();
 
-  for (int x = 0; x < 3; x++)
-    for (int y = 0; y < 3; y++)
-      for (int z = 0; z < 3; z++)
-        cube[x][y][z] = fireColor(fireHeat[x][y][z], pal);
+  for (int x = 0; x < 3; x++) {
+    for (int y = 0; y < 3; y++) {
+      for (int z = 0; z < 3; z++) {
+        // move the displayed heat a fraction of the way towards the simulated heat
+        int d = (int)fireHeat[x][y][z] - fireShown[x][y][z];
+        int s = (d * fireSmooth[y]) / 8;
+        if (s == 0 && d != 0) s = (d > 0) ? 1 : -1;
+        fireShown[x][y][z] += s;
+        cube[x][y][z] = fireColor(fireShown[x][y][z], pal);
+      }
+    }
+  }
 }
 
 
 void fire() {
-  fireUpdate(fireClassic);
+  fireUpdate(gammaVal > 1.5 ? fireClassic : fireLinear);
 }

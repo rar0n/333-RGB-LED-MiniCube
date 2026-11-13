@@ -159,7 +159,7 @@ const unsigned char colorMax  = 256 - colorStep ;
 
 // Gamma correction stuff
 unsigned char gamma[256];   // gamma correction table
-const float gammaVal = 2.2; // gamma value
+const float gammaVal = 1.0; // gamma value (1.0 = no correction, 2.2 = gamma corrected)
 
 
 // Timer interrupt stuff. Big thanks to the tutorial at
@@ -229,7 +229,8 @@ void setup() {
     // human perception to linear brightness (or vice versa)
     //gamma[i] = (unsigned char)(255.0 * (i / 255.0) * pow(i / 255.0, 0-gammaVal));
 
-    gamma[i] = (unsigned char)(255.0 * pow(i / 255.0, gammaVal));
+    if (gammaVal == 1.0) gamma[i] = i; // exactly no correction (avoids float rounding)
+    else gamma[i] = (unsigned char)(255.0 * pow(i / 255.0, gammaVal));
   }
 
   // initial white cube
