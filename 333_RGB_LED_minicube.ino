@@ -1,142 +1,46 @@
 /* 3x3x3 RGB LED mini Cube test
 
 
- * DISCLAIMER:  This is provided on an as-is basis. Use at your own risk.
-                This is for a 3x3x3 RGB LED cube (so "somewhat limited" resolution..)
-                The aim was (is?) an 8x8x8 cube.
-                Some things are left unfinished, some unneccerasy bits included.
+          2018 Ragnar Aronsen (raron)
 
-                It's an indefinitely paused project...
+     2026.11.13 - Slighest change back to analog input A7 for Arduino Nano
+     2023.11.06 - Slighest change to analog input A5 for Atmega328 DIP version
+     2018.04.27 - Tinkering with FFT stuff
+     2018.04.12 - Messing with the cube again..
+     2018.04.02 - n-phase pulser animation. orbits animation
+     2018.03.31 - 81 LEDs (27 RGB) with 128 individual PWM levels @ 52.3 Hz achieved
+     2018.03.30 - inverted rows to save a chip and a transistor
+     2018.03.24 - managed at least 64 PWM levels at 68 Hz
+     2018.03.19 - started tinkering
 
+  Directly driven by and connected to an Arduino Nano (or compatible)
+  No schematics atm but in short: 
   
-  GNU GPLv3 license
-  
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-  
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-  
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  Arduino pins to RGB LED (Common cathode) pinout:
+ 
+    portD   0,3,6 = blue columns  (2.7 k ohm series resistors)
+    portD   1,4,7 = green columns (2.7 k ohm series resistors)
+    portD/B 2,5,8 = red columns   (470 ohm series resistors)
     
+    pin 9-17 = row pins (active-low)
+    pin 9 = row 1 upper front, pin 17 = row 9 lower back
 
-
-    Copyright (C) 2018-2020 Ragnar Aronsen (raronzen@gmail.com - not checked often!)
-       (Except the fix_fft stuff, which I believe is Public Domain)
-
-
-
-
-  The usual uneccesarily detailed devlog:
-
-    2020.04.11 - Description edits for v. 0.30 release 1
-    2018.04.27 - Tinkering with FFT stuff
-    2018.03.31 - 128 PWM levels @ 52.3 Hz for 81 LEDs (27 RGB)
-    2018.03.30 - Inverted row outputs to save a chip and a transistor
-    2018.03.24 - 64 PWM levels at 68 Hz
-    2018.03.19 - Started tinkering
-
-
-
-
-
-SCHEMATICS DESCRIPTION
-
-  Directly driven by and connected to an Arduino Nano (or compatible).
-  Each color column (or plane) MUST HAVE AN ASSOIATED SERIES RESISTOR !!
-
-    NOTE! Keep the total max current for one row (3 RGB LEDs as white) within Arduino specs!
-  
-  The value was experimentatally determined, and was what my RGB LEDs seemed to be the most white with
-  (while still having a somewhat conservative intensity on the R,G and B channels).
-  It totalled about 8.5 mA for a fully lit RGB LED. Times 3 = 25.5 mA for one row,
-  and is below Arduino's max of 40 mA pr. pin. In addition any one row is only on for 1/9th the time.
-  
-  (Beware it's a 200 mA limit total all pins, regardless! According to Note 3 under Table 32-2 of the Atmega 328P datasheet)
-  
-  Your RGB LED's may vary. Mine were common cathode, diffuse RGB LED's, not sure what particular type if it has a name.
+               Top
  
-
-
-  The cube is really a 2D matrix of 3 columns by 9 rows.
-  The 9 rows again are just positioned into a 3 by 3 pattern to make a cube (translated in software as a cube).
-  One row is lit at a time, for a maximum of 1/9th intensity.
-
-  Rows run along the X axis (width).
-  Columns run along the Y and Z axis (a plane).
-
-
-  Arduino digital output (pin) - to - RGB LED mapping:
- 
-    0,3,6 (PortD)       = blue planes  ( 2.7 k ohm series resistors )
-    1,4,7 (PortD)       = green planes ( 2.7 k ohm series resistors )
-    2,5,8 (portD/B)     = red planes   ( 470 ohm series resistors )
-    9-17                = row pins (active-low)
-                          (pin 9 = row 0 upper front, pin 17 = row 8 lower back, see below)
-    18                  = Selection button (active-low)
-    A7 (Analog input 7) = mic (from preamp)
-
-
-    PIN - TO - ROW position mappings right side view:
-
-                 Top    Digital outputs/pins
-                       /
               9  12  15
-     Front   10  13  16    Back
+     Front   10  13  16   Back
              11  14  17
-     ----------------------------  <-- Base (PCB / circuit board)
+
+                Base (PCB / circuit board)
+
+    
+    pin 18 - button (active-low)
+    Analog input 5 - mic (preamp)
 
 
-   Row numbering, the same right side view:
-
-                 Top
-
-              0   3   6
-     Front    1   4   7    Back
-              2   5   8
-     ----------------------------  <-- Base (PCB / circuit board)
-
-
-
-
-     Another way to look at it:
-
-     Isometric side view (Row pins and row numbers indicated on the "Right side")
-
-        
-                                 Left side
-          
-                            _ X axis (width)
-                            /|
-                           / ____________
-                            /   /   /   /|
-                         0 /___/___/___/ | 2
-                          /   /Top/   /| |
-                       1 /___/___/___/ |/| 1
-                        /   /   /   /| | |
-        Front        2 /___/___/___/ |/|/| 0      Back
-                pin    | 9 | 12| 15| | | |
-               row     |0__|3__|6__|/|/|/  |
-                pin    | 10| 13| 16| | /  \|/
-               row     |1__|4__|7__|/|/    
-                pin    | 11| 14| 17| /     Y axis (heigth)
-               row     |2__|5__|8__|/
-                      
-                         0   1   2  ---> Z axis (depth)
-                
-                      Right side
-
-
-
-  TODO
-
-    Fix setup so row pins are initialized in HIGH state.
-    Make a few main functions selectable by button.
+  TODO:
+    make a few main functions selectable by button.
+    make a function that goes through the rest (all?) animations successively.
     IF FFT works:
     - a function that changes animation by beat ?
     - change something else by sound?
@@ -151,11 +55,12 @@ SCHEMATICS DESCRIPTION
     Improve PWM
      - Look into lower PWM level flickering * DONE !!
          - shuffle row PWM method? * depr
-     - Logarithmic brightness?          * testing...
+     - Logarithmic brightness?          * testing
     Get rid of delay()                   * DONE
     button debounce                      * DONE
 
     More cool animations! (show off PWM more)
+    - Central LED brightness beats, growing with beats to surrounding LED's (orbit variation?)
     - flame animation !
     - fireworks-ish?
     - Matrix / rain
@@ -216,9 +121,8 @@ inline RGB operator ! (const RGB &a) {
 }
 
 
-RGB cube[3][3][3];        // The Cube matrix. 0,0,0=front bottom left, 2,2,2=back upper right
+RGB cube[3][3][3];      // The Cube matrix. 0,0,0=front bottom left, 2,2,2=back upper right
 
-unsigned char gamma[256]; // PWM brightness correction table
 
 // Timing stuff
 unsigned long currentTime;
@@ -227,11 +131,16 @@ unsigned long runtime;
 unsigned long buttonChangeTime =   0;
 unsigned long debounceDelay   =   50; // button debounce in ms
 
-// Arduino Nano pinout
+
+// Arduino pinout (Mostly Arduino Nano)
 const int firstColPin =  0; // Column outputs
 const int firstRowPin =  9; // Row outputs
 const int buttonPin   = 18; // function button
+
+// AUDIO PIN DIFFERENCE Nano - Atmega 328 DIP version
+//const int audioPin    =  5; // Analog input pin A5 FOR ATMEGA 328 DIP version!
 const int audioPin    =  7; // Analog input pin A7
+
 
 // Get cube Y and Z coordinates for row to be displayed
 int gety[9] = { 2, 1, 0, 2, 1, 0, 2, 1, 0 };
@@ -248,6 +157,11 @@ const unsigned char PWMres    = 128 ;  // PWM resolution/levels
 const unsigned char colorStep = 256 / PWMres ;
 const unsigned char colorMax  = 256 - colorStep ;
 
+// Gamma correction stuff
+unsigned char gamma[256];   // gamma correction table
+const float gammaVal = 2.2; // gamma value
+
+
 // Timer interrupt stuff. Big thanks to the tutorial at
 // http://www.uchobby.com/index.php/2007/11/24/arduino-interrupts/
 unsigned int latency = 0;
@@ -263,11 +177,11 @@ int buttonState       = 1; // Active-LOW button input
 int buttonReading     = 1;
 int lastButtonReading = 1;
 int selFunc    =  0; // selected function
-int functions  =  8; // number of functions
+int functions  =  9; // number of functions
 int currentAni =  3; // current LED animation
-int animations = 20; // nr. of different LED animations
+int animations = 20;  // nr. of different LED animations
 
-// some fixed colors
+// some fixed color mixes
 const int colorMixes = 8;
 RGB colormix[colorMixes] = {
   { 255, 255, 255 },
@@ -306,15 +220,16 @@ void setup() {
   //DIDR0 = 0x80; // turn off the digital input for adc7
   analogReference(EXTERNAL);
 
+
   // PWM brightness correction tests
   for (int i=0; i<256; i++)
   {
-    gamma[i] = i; // no correction
-    //gamma[i] = (unsigned char)(255.0 * pow(i/255.0,1.2)); 
-    //gamma[i] = (unsigned char)(255.0 * pow(i/255.0,1.4142)); 
-    //gamma[i] = (unsigned char)(255.0 * pow(i/255.0,1.618));
-    //gamma[i] = (unsigned char)(255.0 * pow(i/255.0,2.71828));
-    //gamma[i] = (unsigned char)(255.0 * pow(i/255.0,4.4)); 
+    //gamma[i] = i; // no correction
+   
+    // human perception to linear brightness (or vice versa)
+    //gamma[i] = (unsigned char)(255.0 * (i / 255.0) * pow(i / 255.0, 0-gammaVal));
+
+    gamma[i] = (unsigned char)(255.0 * pow(i / 255.0, gammaVal));
   }
 
   // initial white cube
@@ -331,7 +246,7 @@ void setup() {
 
 
 void loop() {
-  currentTime = millis();
+  currentTime   = millis();
   buttonReading = digitalRead(buttonPin);
 
   // int test = analogRead(analogPin);
@@ -357,15 +272,14 @@ void loop() {
   //test
   //currentAni = selFunc;
 
-  if (selFunc == 0) {
-    currentAni = ((currentTime-startTime)/60000)%animations;
-  }
-  if (selFunc == 1)
-  {
-    fftBeatChange();
-  }
   if (selFunc > 1) {
     switch (selFunc) {
+      case 0:
+        currentAni = ((currentTime-startTime)/60000)%animations;
+        break;
+      case 1:
+        fftBeatChange();
+        break;
       case 2:
         currentAni = 3;
         break;
@@ -379,9 +293,12 @@ void loop() {
         currentAni = 10;
         break;
       case 6:
-        currentAni = 13;
+        currentAni = 12;
         break;
       case 7:
+        currentAni = 13;
+        break;
+      case 8:
         currentAni = 17;
         break;
     }

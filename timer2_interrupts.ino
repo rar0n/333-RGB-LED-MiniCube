@@ -43,7 +43,6 @@ ISR(TIMER2_OVF_vect)
   int y;
   int z;
 
-  // Problem if using 256 PWM levels and byte sized colorMax
   if (PWMcycle >= colorMax)
   {
     //PWMcycle = colorStep;
@@ -88,7 +87,8 @@ ISR(TIMER2_OVF_vect)
     }
   }
 
-  // make PWM colors (one row) for one "PWM step"
+  // build PWM column data (one row) for one "PWM step"
+  // Probable issue if 256 PWM levels (use >= but not include 0/zero ?)
   y = gety[rowCounter];
   z = getz[rowCounter];
 
