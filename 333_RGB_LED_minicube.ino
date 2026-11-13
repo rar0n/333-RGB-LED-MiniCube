@@ -177,9 +177,9 @@ int buttonState       = 1; // Active-LOW button input
 int buttonReading     = 1;
 int lastButtonReading = 1;
 int selFunc    =  0; // selected function
-int functions  =  9; // number of functions
+int functions  = 10; // number of functions
 int currentAni =  3; // current LED animation
-int animations = 20;  // nr. of different LED animations
+int animations = 21;  // nr. of different LED animations
 
 // some fixed color mixes
 const int colorMixes = 8;
@@ -301,6 +301,9 @@ void loop() {
       case 8:
         currentAni = 17;
         break;
+      case 9:
+        currentAni = 20;
+        break;
     }
   }
 
@@ -366,6 +369,9 @@ void loop() {
       break;
     case 19:
       fftTest4();
+      break;
+    case 20:
+      fire();
       break;
   }
   lastButtonReading = buttonReading;
